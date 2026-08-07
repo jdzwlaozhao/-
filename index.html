@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>采买报销核对工作台</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="data.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --c-primary:#2563eb;--c-primary-light:#dbeafe;
+  --c-success:#16a34a;--c-success-light:#dcfce7;
+  --c-danger:#dc2626;--c-danger-light:#fee2e2;
+  --c-warning:#d97706;--c-warning-light:#fef3c7;
+  --c-bg:#f0f2f5;--c-surface:#fff;
+  --c-border:#e2e8f0;--c-border-strong:#cbd5e1;
+  --c-text:#1e293b;--c-muted:#64748b;--c-muted-light:#94a3b8;
+}
+html{font-size:14px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--c-bg);color:var(--c-text);line-height:1.5}
+
+/* Header */
+.app-header{background:var(--c-surface);border-bottom:1px solid var(--c-border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.app-header .title-group{display:flex;align-items:center;gap:10px}
+.app-header .logo{width:34px;height:34px;background:linear-gradient(135deg,var(--c-primary),#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:700}
+.app-header h1{font-size:17px;font-weight:700}
+.app-header .subtitle{font-size:11px;color:var(--c-muted)}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border:1px solid var(--c-border-strong);border-radius:7px;background:var(--c-surface);color:var(--c-text);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--c-primary);border-color:var(--c-primary);color:#fff}
+.btn-primary:hover{background:#1d4ed8;color:#fff}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+/* Body */
+.app-body{padding:16px 24px 40px;max-width:1700px;margin:0 auto}
+
+/* Summary cards */
+.summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.card{background:var(--c-surface);border-radius:8px;padding:14px 18px;min-width:140px;flex:1;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--c-border)}
+.card-label{font-size:11px;color:var(--c-muted);margin-bottom:4px;font-weight:500}
+.card-value{font-size:22px;font-weight:700;font-family:"SF Mono","Consolas",monospace;line-height:1.2}
+.card-sub{font-size:11px;color:var(--c-muted-light);margin-top:2px}
+.card.total .card-value{color:var(--c-primary)}
+.card.match .card-value{color:var(--c-success)}
+.card.mismatch .card-value{color:var(--c-danger)}
+.card.diff .card-value{color:var(--c-warning)}
+
+/* Alert bar */
+.alert-bar{margin-bottom:16px;padding:10px 16px;background:var(--c-danger-light);border:1px solid #fca5a5;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+.alert-bar .alert-text{font-size:13px;color:#991b1b;font-weight:500}
+.alert-bar .alert-text strong{font-size:15px}
+.alert-bar .alert-actions{display:flex;gap:8px}
+
+/* Info bar */
+.info-bar{margin-bottom:16px;padding:8px 16px;background:var(--c-primary-light);border:1px solid #93c5fd;border-radius:8px;font-size:12px;color:#1e40af}
+
+/* Toolbar */
+.toolbar{background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px 8px 0 0;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:none}
+.filter-group{display:flex;gap:4px}
+.filter-btn{padding:5px 14px;border:1px solid var(--c-border-strong);background:var(--c-surface);border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--c-muted);transition:all .15s}
+.filter-btn:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.filter-btn.active{background:var(--c-primary);color:#fff;border-color:var(--c-primary)}
+.filter-btn .badge{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:10px;font-size:11px;background:rgba(0,0,0,.1)}
+.filter-btn.active .badge{background:rgba(255,255,255,.25)}
+.toolbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.search-box{padding:5px 12px;border:1px solid var(--c-border-strong);border-radius:6px;font-size:13px;width:200px;outline:none}
+.search-box:focus{border-color:var(--c-primary)}
+.tolerance-group{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--c-muted)}
+.tolerance-input{width:60px;padding:4px 8px;border:1px solid var(--c-border-strong);border-radius:6px;font-size:12px;text-align:center;outline:none}
+.tolerance-input:focus{border-color:var(--c-primary)}
+
+/* Merge toggle */
+.merge-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--c-border-strong);border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--c-muted);transition:all .15s;user-select:none}
+.merge-toggle:hover{border-color:var(--c-success);color:var(--c-success)}
+.merge-toggle.active{background:var(--c-success);color:#fff;border-color:var(--c-success)}
+.merge-toggle .dot{width:8px;height:8px;border-radius:50%;background:var(--c-muted-light);transition:all .15s}
+.merge-toggle.active .dot{background:#fff}
+
+/* Table */
+.table-wrap{background:var(--c-surface);border:1px solid var(--c-border);border-radius:0 0 8px 8px;overflow:auto;max-height:calc(100vh - 300px);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:#f8fafc;padding:8px 10px;text-align:left;font-weight:600;color:var(--c-text);border-bottom:2px solid var(--c-border);position:sticky;top:0;z-index:10;white-space:nowrap;font-size:12px}
+thead th.col-f{background:#fffbeb}
+thead th.col-computed{background:#eff6ff}
+thead th.col-merge{background:#f0fdf4}
+tbody td{padding:6px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tbody tr:hover{background:#f8fafc}
+tbody tr.mismatch{background:#fef2f2}
+tbody tr.mismatch:hover{background:#fee2e2}
+tbody tr.section-header td{background:#e0f2fe;font-weight:600;color:#0369a1;padding:6px 10px;font-size:13px}
+tbody tr.section-header:hover{background:#e0f2fe}
+tbody tr.group-start td{border-top:2px solid #c7d2fe}
+
+/* Column styles */
+td.col-seq{font-weight:600;color:var(--c-muted);text-align:center;width:40px}
+td.col-name{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.col-project{color:var(--c-muted);white-space:nowrap}
+td.col-platform{color:var(--c-muted);white-space:nowrap}
+td.col-f{font-family:"SF Mono","Consolas",monospace;font-weight:600;text-align:right;background:#fffbeb;white-space:nowrap}
+td.col-date{color:var(--c-muted-light);white-space:nowrap;font-size:11px}
+td.col-invoice{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-muted);font-size:11px}
+td.col-reimburse{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--c-muted);font-size:11px}
+td.col-computed{font-family:"SF Mono","Consolas",monospace;text-align:right;white-space:nowrap;background:#f8fbff}
+td.col-merge{font-family:"SF Mono","Consolas",monospace;text-align:right;white-space:nowrap;background:#f0fdf4}
+td.col-amount-i{color:#6366f1}
+td.col-amount-j{color:#8b5cf6}
+td.col-sum{font-weight:600}
+td.col-diff{font-weight:600}
+td.col-diff.positive{color:var(--c-warning)}
+td.col-diff.negative{color:var(--c-danger)}
+td.col-diff.zero{color:var(--c-success)}
+td.col-status{text-align:center;width:50px;font-size:14px}
+td.col-status.match{color:var(--c-success)}
+td.col-status.mismatch{color:var(--c-danger)}
+td.col-group{text-align:center;width:36px;font-size:11px;font-weight:600;color:var(--c-muted)}
+td.col-group.group-first{color:var(--c-primary)}
+td.no-number{color:var(--c-danger);font-style:italic;font-size:11px}
+
+/* Tags */
+.no-number-tag{display:inline-block;padding:1px 5px;border-radius:3px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:500;margin-left:4px}
+.inherit-tag{display:inline-block;padding:1px 5px;border-radius:3px;background:#e0e7ff;color:#3730a3;font-size:10px;font-weight:500;margin-left:4px}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--c-surface);border-radius:10px;padding:24px;width:600px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.modal h3{margin-bottom:8px;font-size:16px}
+.modal p{font-size:13px;color:var(--c-muted);margin-bottom:12px}
+.modal textarea{width:100%;height:240px;padding:10px;border:1px solid var(--c-border-strong);border-radius:6px;font-family:monospace;font-size:12px;resize:vertical;outline:none}
+.modal textarea:focus{border-color:var(--c-primary)}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 20px;color:var(--c-muted)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state h3{font-size:16px;margin-bottom:6px;color:var(--c-text)}
+.empty-state p{font-size:13px}
+
+/* File info */
+.file-info{font-size:11px;color:var(--c-muted-light);padding:8px 16px;background:var(--c-surface);border-top:1px solid var(--c-border)}
+
+/* Feishu modal */
+.feishu-modal{width:680px}
+.feishu-tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--c-border)}
+.feishu-tab{padding:8px 18px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--c-muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.feishu-tab:hover{color:var(--c-primary)}
+.feishu-tab.active{color:var(--c-primary);border-bottom-color:var(--c-primary)}
+.feishu-tab-content{display:none}
+.feishu-tab-content.active{display:block}
+.feishu-input-group{margin-bottom:12px}
+.feishu-input-group label{display:block;font-size:12px;color:var(--c-muted);margin-bottom:4px;font-weight:500}
+.feishu-input{width:100%;padding:8px 12px;border:1px solid var(--c-border-strong);border-radius:6px;font-size:13px;outline:none;transition:border-color .15s}
+.feishu-input:focus{border-color:var(--c-primary)}
+.feishu-steps{background:#f8fafc;border:1px solid var(--c-border);border-radius:6px;padding:12px 16px;margin-bottom:12px}
+.feishu-steps ol{padding-left:20px;margin:0}
+.feishu-steps li{font-size:12px;color:var(--c-muted);margin-bottom:6px;line-height:1.6}
+.feishu-steps li:last-child{margin-bottom:0}
+.feishu-steps li strong{color:var(--c-text)}
+kbd{background:#f1f5f9;border:1px solid var(--c-border-strong);border-radius:4px;padding:1px 6px;font-size:11px;font-family:monospace}
+.feishu-status{padding:8px 12px;border-radius:6px;font-size:12px;margin-top:8px;display:none;line-height:1.5}
+.feishu-status.info{background:var(--c-primary-light);color:#1e40af;display:block}
+.feishu-status.error{background:var(--c-danger-light);color:#991b1b;display:block}
+.feishu-status.success{background:var(--c-success-light);color:#166534;display:block}
+.feishu-help-link{font-size:11px;color:var(--c-primary);cursor:pointer;text-decoration:underline;margin-left:4px}
+.feishu-help-box{background:#f8fafc;border:1px solid var(--c-border);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--c-muted);line-height:1.7}
+.feishu-help-box code{background:#e2e8f0;padding:1px 4px;border-radius:3px;font-size:10px}
+.feishu-instructions{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:#166534;line-height:1.6}
+.feishu-cmd-box{background:#1e293b;color:#e2e8f0;padding:14px 16px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;cursor:pointer;position:relative;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.feishu-cmd-box:hover{background:#0f172a}
+.feishu-cmd-copy{position:absolute;top:6px;right:10px;font-size:11px;color:#94a3b8}
+.feishu-loading{display:inline-block;width:14px;height:14px;border:2px solid var(--c-border-strong);border-top-color:var(--c-primary);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="title-group">
+    <div class="logo">核</div>
+    <div>
+      <h1>采买报销核对工作台</h1>
+      <div class="subtitle">自动比对总价(F) 与 发票(I)+报销(J) 金额差异</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <label class="btn">
+      📁 上传文件
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden>
+    </label>
+    <button class="btn" id="pasteBtn">📋 粘贴数据</button>
+    <button class="btn" id="feishuBtn" style="border-color:#33b8a3;color:#33b8a3">🔗 从飞书导入</button>
+    <button class="btn" id="sampleBtn">🔄 加载示例</button>
+    <button class="btn btn-primary" id="exportBtn">⬇ 导出结果</button>
+  </div>
+</div>
+
+<div class="app-body">
+  <div class="summary" id="summary"></div>
+  <div class="info-bar" id="infoBar" style="display:none;"></div>
+  <div class="alert-bar" id="alertBar" style="display:none;"></div>
+
+  <div class="toolbar">
+    <div class="filter-group">
+      <button class="filter-btn active" data-filter="all">全部 <span class="badge" id="badge-all">0</span></button>
+      <button class="filter-btn" data-filter="mismatch">仅差异 <span class="badge" id="badge-mismatch">0</span></button>
+      <button class="filter-btn" data-filter="match">仅匹配 <span class="badge" id="badge-match">0</span></button>
+    </div>
+    <div class="toolbar-right">
+      <div class="merge-toggle active" id="mergeToggle">
+        <span class="dot"></span>
+        <span id="mergeLabel">合并核对</span>
+      </div>
+      <input type="text" class="search-box" id="searchInput" placeholder="搜索商品名、项目...">
+      <div class="tolerance-group">
+        <span>容差 ¥</span>
+        <input type="number" class="tolerance-input" id="toleranceInput" value="0.01" step="0.01" min="0">
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="tableWrap">
+    <div class="empty-state">
+      <div class="icon">📊</div>
+      <h3>暂无数据</h3>
+      <p>点击「加载示例」或上传 CSV/Excel 文件开始核对</p>
+    </div>
+  </div>
+  <div class="file-info" id="fileInfo"></div>
+</div>
+
+<!-- Paste Modal -->
+<div class="modal-overlay" id="pasteModal" style="display:none;">
+  <div class="modal">
+    <h3>粘贴数据</h3>
+    <p>从飞书表格 / Excel / WPS 中全选复制，粘贴到下方文本框：</p>
+    <textarea id="pasteArea" placeholder="在此粘贴表格数据..."></textarea>
+    <div class="modal-actions">
+      <button class="btn" id="cancelPaste">取消</button>
+      <button class="btn btn-primary" id="confirmPaste">导入数据</button>
+    </div>
+  </div>
+</div>
+
+<!-- Feishu Import Modal -->
+<div class="modal-overlay" id="feishuModal" style="display:none;">
+  <div class="modal feishu-modal">
+    <h3>🔗 从飞书导入数据</h3>
+    <div class="feishu-tabs">
+      <button class="feishu-tab active" data-ftab="url">链接导入</button>
+      <button class="feishu-tab" data-ftab="paste">复制粘贴</button>
+      <button class="feishu-tab" data-ftab="assistant">AI助手导入</button>
+    </div>
+
+    <!-- Tab 1: URL Import -->
+    <div class="feishu-tab-content active" id="ftab-url">
+      <div class="feishu-input-group">
+        <label>飞书表格链接</label>
+        <input type="text" class="feishu-input" id="feishuUrl" placeholder="粘贴飞书电子表格链接，如 https://xxx.feishu.cn/sheets/...">
+      </div>
+      <div class="feishu-input-group">
+        <label>访问令牌 (Tenant Access Token)<span class="feishu-help-link" onclick="var h=document.getElementById('tokenHelp');h.style.display=h.style.display==='block'?'none':'block'">如何获取?</span></label>
+        <input type="text" class="feishu-input" id="feishuToken" placeholder="t-g104xxx 格式的令牌">
+      </div>
+      <div class="feishu-help-box" id="tokenHelp" style="display:none">
+        <strong>获取 Tenant Access Token：</strong><br>
+        1. 打开 <span style="color:var(--c-primary)">飞书开放平台</span> → 开发者后台 (open.feishu.cn)<br>
+        2. 创建企业自建应用 → 获取 App ID 和 App Secret<br>
+        3. 为应用添加权限：云表格 → 查看电子表格<br>
+        4. 用 App ID 和 App Secret 调用接口获取令牌：<br>
+        <code>POST /open-apis/auth/v3/tenant_access_token/internal</code><br>
+        <br>
+        <strong>注意：</strong>浏览器直接调用飞书 API 可能被 CORS 策略拦截。如遇错误请改用「复制粘贴」或「AI助手导入」。
+      </div>
+      <div class="feishu-status" id="feishuStatus"></div>
+      <button class="btn btn-primary" id="feishuFetchBtn" style="margin-top:8px">获取数据</button>
+    </div>
+
+    <!-- Tab 2: Paste -->
+    <div class="feishu-tab-content" id="ftab-paste">
+      <div class="feishu-steps">
+        <ol>
+          <li><strong>打开飞书表格</strong> — 在浏览器中打开你的飞书电子表格</li>
+          <li><strong>选中数据</strong> — 点击左上角全选按钮，或拖选需要的数据区域</li>
+          <li><strong>复制</strong> — 按 <kbd>Ctrl+C</kbd>（Mac: <kbd>Cmd+C</kbd>）</li>
+          <li><strong>粘贴</strong> — 点击下方文本框，按 <kbd>Ctrl+V</kbd>（Mac: <kbd>Cmd+V</kbd>）</li>
+        </ol>
+      </div>
+      <textarea id="feishuPasteArea" placeholder="在此粘贴从飞书复制的数据（支持 Tab 分隔格式）..." style="width:100%;height:180px;padding:10px;border:1px solid var(--c-border-strong);border-radius:6px;font-family:monospace;font-size:12px;resize:vertical;outline:none"></textarea>
+    </div>
+
+    <!-- Tab 3: AI Assistant -->
+    <div class="feishu-tab-content" id="ftab-assistant">
+      <div class="feishu-instructions">
+        💡 如果你正在 <strong>WorkBuddy</strong> 中使用此工作台，可以让 AI 直接帮你从飞书拉取数据。<br><br>
+        前提：已在 WorkBuddy 连接器管理中启用「飞书」连接器并完成授权。
+      </div>
+      <div class="feishu-input-group">
+        <label>飞书文档/表格链接</label>
+        <input type="text" class="feishu-input" id="feishuAssistantUrl" placeholder="粘贴飞书表格链接">
+      </div>
+      <p style="font-size:12px;color:var(--c-muted);margin-bottom:8px">点击下方按钮生成指令，复制后发送给 AI 助手：</p>
+      <button class="btn btn-primary" id="feishuGenCmdBtn">生成导入指令</button>
+      <div class="feishu-cmd-box" id="feishuCmdBox" style="display:none;">
+        <span class="feishu-cmd-copy">点击复制</span>
+        <span id="feishuCmdText"></span>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" id="cancelFeishu">取消</button>
+      <button class="btn btn-primary" id="confirmFeishu" style="display:none;">导入数据</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== State =====
+let rawData = [];
+let processed = [];
+let currentFilter = 'all';
+let currentSearch = '';
+let tolerance = 0.01;
+let mergeMode = true;
+let currentFileName = '示例数据：采买报销个人整理 - 2026.07';
+
+// ===== CSV Parser =====
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && n === '"') { field += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') {}
+      else field += c;
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// ===== Number Extractor =====
+function extractAmount(text) {
+  if (!text || String(text).trim() === '') return { value: 0, hasNumber: false, isBlank: true };
+  const str = String(text).trim();
+
+  // 1. Try decimal numbers (e.g., 163.49, 22.35, 735.00)
+  const decimals = str.match(/\d+\.\d+/g);
+  if (decimals && decimals.length > 0) {
+    return { value: parseFloat(decimals[0]), hasNumber: true, isBlank: false };
+  }
+
+  // 2. Try integers, skip "1" (commonly "1个行程")
+  const ints = str.match(/\d+/g);
+  if (ints) {
+    for (const m of ints) {
+      const n = parseInt(m);
+      if (n > 1) return { value: n, hasNumber: true, isBlank: false };
+    }
+  }
+
+  // 3. No number found
+  return { value: 0, hasNumber: false, isBlank: false };
+}
+
+// ===== Process Data (Step 1: individual) =====
+function processData(rows) {
+  const result = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    while (row.length < 10) row.push('');
+
+    const colA = (row[0] || '').trim();
+    const hasOtherData = row.slice(1, 10).some(c => c && c.trim() !== '');
+    if (colA && !hasOtherData) {
+      result.push({ type: 'section', title: colA, rowIndex: i });
+      continue;
+    }
+
+    const isEmpty = row.slice(0, 10).every(c => !c || c.trim() === '');
+    if (isEmpty) continue;
+
+    const fRaw = (row[5] || '').trim();
+    const fVal = parseFloat(fRaw);
+    if (isNaN(fVal) || fRaw === '') continue;
+
+    const iResult = extractAmount(row[8]);
+    const jResult = extractAmount(row[9]);
+    const ijSum = iResult.value + jResult.value;
+    const diff = Math.round((fVal - ijSum) * 100) / 100;
+    const isMatch = Math.abs(diff) <= tolerance;
+
+    result.push({
+      type: 'data',
+      rowIndex: i,
+      seq: row[0], name: row[1], project: row[2], buyer: row[3],
+      platform: row[4], fRaw: fRaw, fVal: fVal,
+      date: row[6], screenshot: row[7],
+      invoiceRaw: row[8], reimburseRaw: row[9],
+      iVal: iResult.value, iHasNumber: iResult.hasNumber, iIsBlank: iResult.isBlank,
+      iInherited: false, iInheritedFrom: '',
+      jVal: jResult.value, jHasNumber: jResult.hasNumber, jIsBlank: jResult.isBlank,
+      ijSum: ijSum, diff: diff, isMatch: isMatch,
+      // Group properties (set in processGroups)
+      groupId: -1, groupSize: 1, groupFirst: false, isStandalone: true,
+      groupF: fVal, groupI: iResult.value, groupJ: jResult.value, groupIJ: ijSum,
+    });
+  }
+
+  // Step 2: merge mode group processing
+  if (mergeMode) {
+    processGroups(result);
+  }
+
+  return result;
+}
+
+// ===== Process Groups (Step 2: merge mode) =====
+function processGroups(result) {
+  let lastNonBlankI = null; // { value, raw, hasNumber } or null
+  let currentGroup = [];
+  let groupId = 0;
+
+  for (const item of result) {
+    if (item.type !== 'data') {
+      // Section header breaks the group
+      if (currentGroup.length > 0) {
+        finalizeGroup(currentGroup, groupId++);
+        currentGroup = [];
+      }
+      lastNonBlankI = null;
+      continue;
+    }
+
+    if (item.iIsBlank) {
+      // I is blank — try to inherit from above
+      if (lastNonBlankI && lastNonBlankI.hasNumber) {
+        // Inherit the invoice amount from the row above
+        item.iVal = lastNonBlankI.value;
+        item.iHasNumber = true;
+        item.iInherited = true;
+        item.iInheritedFrom = lastNonBlankI.raw;
+        item.ijSum = item.iVal + item.jVal; // update individual ijSum
+        currentGroup.push(item);
+      } else {
+        // Can't inherit — standalone with I=0
+        if (currentGroup.length > 0) {
+          finalizeGroup(currentGroup, groupId++);
+          currentGroup = [];
+        }
+        setStandalone(item, groupId++);
+      }
+    } else {
+      // I is non-blank (has text)
+      if (currentGroup.length > 0) {
+        finalizeGroup(currentGroup, groupId++);
+        currentGroup = [];
+      }
+
+      // Track this as the last non-blank I
+      lastNonBlankI = {
+        value: item.iVal,
+        raw: item.invoiceRaw,
+        hasNumber: item.iHasNumber
+      };
+
+      if (item.iHasNumber) {
+        // Has a number — start a new group
+        currentGroup = [item];
+      } else {
+        // Has text but no number (e.g. "餐饮替票") — standalone, breaks inheritance
+        setStandalone(item, groupId++);
+      }
+    }
+  }
+
+  // Finalize last group
+  if (currentGroup.length > 0) {
+    finalizeGroup(currentGroup, groupId++);
+  }
+}
+
+function setStandalone(item, gid) {
+  item.groupId = gid;
+  item.groupSize = 1;
+  item.groupFirst = true;
+  item.isStandalone = true;
+  item.groupF = item.fVal;
+  item.groupI = item.iVal;
+  item.groupJ = item.jVal;
+  item.groupIJ = item.iVal + item.jVal;
+  // diff and isMatch already computed individually
+}
+
+function finalizeGroup(group, gid) {
+  const groupF = group.reduce((s, r) => s + r.fVal, 0);
+  const groupI = group[0].iVal; // First row's I (the actual invoice)
+  const groupJ = group.reduce((s, r) => s + r.jVal, 0);
+  const groupIJ = groupI + groupJ;
+  const groupDiff = Math.round((groupF - groupIJ) * 100) / 100;
+  const groupMatch = Math.abs(groupDiff) <= tolerance;
+
+  for (let i = 0; i < group.length; i++) {
+    const r = group[i];
+    r.groupId = gid;
+    r.groupSize = group.length;
+    r.groupFirst = (i === 0);
+    r.isStandalone = false;
+    r.groupF = groupF;
+    r.groupI = groupI;
+    r.groupJ = groupJ;
+    r.groupIJ = groupIJ;
+    // Override individual diff/isMatch with group-level
+    r.diff = groupDiff;
+    r.isMatch = groupMatch;
+  }
+}
+
+// ===== Render Summary =====
+function renderSummary() {
+  const dataRows = processed.filter(d => d.type === 'data');
+  const matched = dataRows.filter(d => d.isMatch);
+  const mismatched = dataRows.filter(d => !d.isMatch);
+
+  // For diff total, use group-level diffs in merge mode (count each group once)
+  let totalDiff, posDiff, negDiff;
+  if (mergeMode) {
+    const groups = {};
+    for (const d of dataRows) {
+      if (!groups[d.groupId]) groups[d.groupId] = d;
+    }
+    const groupList = Object.values(groups);
+    const mismatchGroups = groupList.filter(g => !g.isMatch);
+    totalDiff = mismatchGroups.reduce((s, g) => s + Math.abs(g.diff), 0);
+    posDiff = mismatchGroups.filter(g => g.diff > 0).reduce((s, g) => s + g.diff, 0);
+    negDiff = mismatchGroups.filter(g => g.diff < 0).reduce((s, g) => s + g.diff, 0);
+  } else {
+    totalDiff = mismatched.reduce((s, d) => s + Math.abs(d.diff), 0);
+    posDiff = mismatched.filter(d => d.diff > 0).reduce((s, d) => s + d.diff, 0);
+    negDiff = mismatched.filter(d => d.diff < 0).reduce((s, d) => s + d.diff, 0);
+  }
+
+  // Count groups in merge mode
+  let groupCount = '';
+  if (mergeMode) {
+    const gids = new Set(dataRows.map(d => d.groupId));
+    const mismatchGids = new Set(mismatched.map(d => d.groupId));
+    const matchGids = new Set(matched.map(d => d.groupId));
+    groupCount = `${gids.size} 组`;
+  }
+
+  document.getElementById('summary').innerHTML = `
+    <div class="card total">
+      <div class="card-label">数据行数</div>
+      <div class="card-value">${dataRows.length}</div>
+      <div class="card-sub">${groupCount || '条采买记录'}</div>
+    </div>
+    <div class="card match">
+      <div class="card-label">金额匹配</div>
+      <div class="card-value">${matched.length}</div>
+      <div class="card-sub">${mergeMode ? '行（同组共用发票）' : 'F = I + J'}</div>
+    </div>
+    <div class="card mismatch">
+      <div class="card-label">金额差异</div>
+      <div class="card-value">${mismatched.length}</div>
+      <div class="card-sub">${mergeMode ? '行（按组核对）' : 'F ≠ I + J'}</div>
+    </div>
+    <div class="card diff">
+      <div class="card-label">差异总额</div>
+      <div class="card-value">¥${totalDiff.toFixed(2)}</div>
+      <div class="card-sub">多付 ¥${posDiff.toFixed(2)} / 少付 ¥${Math.abs(negDiff).toFixed(2)}</div>
+    </div>
+  `;
+
+  // Info bar
+  const infoBar = document.getElementById('infoBar');
+  if (mergeMode) {
+    infoBar.style.display = 'block';
+    infoBar.innerHTML = '💡 <strong>合并核对模式</strong>：I列(发票)空白时自动继承上方最近的有金额发票，同组订单合并比对（组内F合计 vs 发票金额+组内J合计）。点击「合并核对」可切换为独立核对。';
+  } else {
+    infoBar.style.display = 'none';
+  }
+
+  // Alert bar
+  const alertBar = document.getElementById('alertBar');
+  if (mismatched.length > 0) {
+    alertBar.style.display = 'flex';
+    alertBar.innerHTML = `
+      <div class="alert-text">
+        ⚠️ 发现 <strong>${mismatched.length}</strong> 条金额差异记录，差异总额 <strong>¥${totalDiff.toFixed(2)}</strong>
+      </div>
+      <div class="alert-actions">
+        <button class="btn btn-sm btn-primary" onclick="setFilter('mismatch')">查看差异明细</button>
+      </div>
+    `;
+  } else {
+    alertBar.style.display = 'none';
+  }
+
+  // Update badges
+  document.getElementById('badge-all').textContent = dataRows.length;
+  document.getElementById('badge-mismatch').textContent = mismatched.length;
+  document.getElementById('badge-match').textContent = matched.length;
+}
+
+// ===== Render Table =====
+function renderTable() {
+  const wrap = document.getElementById('tableWrap');
+  const dataRows = processed.filter(d => d.type === 'data');
+
+  if (dataRows.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="icon">📊</div><h3>暂无数据</h3><p>点击「加载示例」或上传 CSV/Excel 文件开始核对</p></div>`;
+    return;
+  }
+
+  // Build header based on mode
+  let headerHtml;
+  if (mergeMode) {
+    headerHtml = `<tr>
+      <th>序号</th>
+      <th>商品名</th>
+      <th>拍摄项目</th>
+      <th>采购人</th>
+      <th>采购平台</th>
+      <th class="col-f">总价(F)</th>
+      <th>采购日期</th>
+      <th>订单截图</th>
+      <th>发票(I)</th>
+      <th>是否报销(J)</th>
+      <th class="col-computed">I金额</th>
+      <th class="col-computed">J金额</th>
+      <th class="col-merge">组F合计</th>
+      <th class="col-merge">组I+J</th>
+      <th class="col-merge">差额</th>
+      <th class="col-merge">状态</th>
+      <th class="col-merge">组</th>
+    </tr>`;
+  } else {
+    headerHtml = `<tr>
+      <th>序号</th>
+      <th>商品名</th>
+      <th>拍摄项目</th>
+      <th>采购人</th>
+      <th>采购平台</th>
+      <th class="col-f">总价(F)</th>
+      <th>采购日期</th>
+      <th>订单截图</th>
+      <th>发票(I)</th>
+      <th>是否报销(J)</th>
+      <th class="col-computed">I金额</th>
+      <th class="col-computed">J金额</th>
+      <th class="col-computed">I+J</th>
+      <th class="col-computed">差额</th>
+      <th class="col-computed">状态</th>
+    </tr>`;
+  }
+
+  const colCount = mergeMode ? 17 : 15;
+  let html = `<table><thead>${headerHtml}</thead><tbody>`;
+
+  for (const item of processed) {
+    if (item.type === 'section') {
+      html += `<tr class="section-header"><td colspan="${colCount}">${escapeHtml(item.title)}</td></tr>`;
+      continue;
+    }
+
+    // Apply filter
+    if (currentFilter === 'mismatch' && item.isMatch) continue;
+    if (currentFilter === 'match' && !item.isMatch) continue;
+
+    // Apply search
+    if (currentSearch) {
+      const searchText = (item.name + item.project + item.platform).toLowerCase();
+      if (!searchText.includes(currentSearch.toLowerCase())) continue;
+    }
+
+    const diffClass = item.diff > 0 ? 'positive' : item.diff < 0 ? 'negative' : 'zero';
+    const diffSign = item.diff > 0 ? '+' : '';
+    const statusIcon = item.isMatch ? '✅' : '❌';
+    const statusClass = item.isMatch ? 'match' : 'mismatch';
+    let rowClass = item.isMatch ? '' : 'mismatch';
+    if (mergeMode && item.groupFirst && !item.isStandalone) rowClass += ' group-start';
+
+    // I amount cell
+    let iCell = '';
+    if (item.iIsBlank && !item.iInherited) {
+      iCell = '<span class="no-number">—</span>';
+    } else if (item.iHasNumber) {
+      iCell = item.iVal.toFixed(2);
+      if (item.iInherited) {
+        iCell += '<span class="inherit-tag">继承</span>';
+      }
+    } else {
+      iCell = `<span class="no-number">0.00</span><span class="no-number-tag">无金额</span>`;
+    }
+
+    // J amount cell
+    let jCell = '';
+    if (item.jIsBlank) {
+      jCell = '<span class="no-number">—</span>';
+    } else if (item.jHasNumber) {
+      jCell = item.jVal.toFixed(2);
+    } else {
+      jCell = `<span class="no-number">0.00</span><span class="no-number-tag">无金额</span>`;
+    }
+
+    if (mergeMode) {
+      // Merge mode: show group columns
+      const groupLabel = item.isStandalone ? '—' : (item.groupFirst ? `#${item.groupId + 1}` : `↑${item.groupId + 1}`);
+      const groupClass = item.groupFirst ? 'col-group group-first' : 'col-group';
+
+      html += `<tr class="${rowClass.trim()}">
+        <td class="col-seq">${escapeHtml(item.seq)}</td>
+        <td class="col-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+        <td class="col-project">${escapeHtml(item.project)}</td>
+        <td>${escapeHtml(item.buyer)}</td>
+        <td class="col-platform">${escapeHtml(item.platform)}</td>
+        <td class="col-f">${item.fVal.toFixed(2)}</td>
+        <td class="col-date">${escapeHtml(item.date)}</td>
+        <td>${escapeHtml(item.screenshot)}</td>
+        <td class="col-invoice" title="${escapeHtml(item.invoiceRaw)}">${escapeHtml(item.invoiceRaw)}</td>
+        <td class="col-reimburse" title="${escapeHtml(item.reimburseRaw)}">${escapeHtml(item.reimburseRaw)}</td>
+        <td class="col-computed col-amount-i">${iCell}</td>
+        <td class="col-computed col-amount-j">${jCell}</td>
+        <td class="col-merge">${item.groupF.toFixed(2)}</td>
+        <td class="col-merge">${item.groupIJ.toFixed(2)}</td>
+        <td class="col-merge col-diff ${diffClass}">${diffSign}${item.diff.toFixed(2)}</td>
+        <td class="col-merge col-status ${statusClass}">${statusIcon}</td>
+        <td class="${groupClass}">${groupLabel}</td>
+      </tr>`;
+    } else {
+      // Independent mode: original columns
+      html += `<tr class="${rowClass.trim()}">
+        <td class="col-seq">${escapeHtml(item.seq)}</td>
+        <td class="col-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</td>
+        <td class="col-project">${escapeHtml(item.project)}</td>
+        <td>${escapeHtml(item.buyer)}</td>
+        <td class="col-platform">${escapeHtml(item.platform)}</td>
+        <td class="col-f">${item.fVal.toFixed(2)}</td>
+        <td class="col-date">${escapeHtml(item.date)}</td>
+        <td>${escapeHtml(item.screenshot)}</td>
+        <td class="col-invoice" title="${escapeHtml(item.invoiceRaw)}">${escapeHtml(item.invoiceRaw)}</td>
+        <td class="col-reimburse" title="${escapeHtml(item.reimburseRaw)}">${escapeHtml(item.reimburseRaw)}</td>
+        <td class="col-computed col-amount-i">${iCell}</td>
+        <td class="col-computed col-amount-j">${jCell}</td>
+        <td class="col-computed col-sum">${item.ijSum.toFixed(2)}</td>
+        <td class="col-computed col-diff ${diffClass}">${diffSign}${item.diff.toFixed(2)}</td>
+        <td class="col-computed col-status ${statusClass}">${statusIcon}</td>
+      </tr>`;
+    }
+  }
+
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+
+// ===== Utility =====
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+  renderTable();
+}
+
+// ===== Load Data =====
+function loadData(csvText, fileName) {
+  rawData = parseCSV(csvText);
+  processed = processData(rawData);
+  currentFileName = fileName || currentFileName;
+  const dataCount = processed.filter(d => d.type === 'data').length;
+  const groupCount = mergeMode ? new Set(processed.filter(d => d.type === 'data').map(d => d.groupId)).size : dataCount;
+  document.getElementById('fileInfo').textContent = `📄 ${currentFileName} | ${dataCount} 条数据行${mergeMode ? ` | ${groupCount} 组` : ''}`;
+  renderSummary();
+  renderTable();
+}
+
+// ===== Export =====
+function exportCSV() {
+  const dataRows = processed.filter(d => d.type === 'data');
+  if (dataRows.length === 0) { alert('暂无数据可导出'); return; }
+
+  let header, colCount;
+  if (mergeMode) {
+    header = ['序号','商品名','拍摄项目','采购人','采购平台','总价(F)','采购日期','订单截图','发票(I)','是否报销(J)','I金额','J金额','组F合计','组I+J','差额','状态','组号'];
+    colCount = 17;
+  } else {
+    header = ['序号','商品名','拍摄项目','采购人','采购平台','总价(F)','采购日期','订单截图','发票(I)','是否报销(J)','I金额','J金额','I+J合计','差额','状态'];
+    colCount = 15;
+  }
+  const lines = [header.join(',')];
+
+  for (const item of processed) {
+    if (item.type === 'section') {
+      lines.push('"' + item.title + '",' + ','.repeat(colCount - 1));
+      continue;
+    }
+    if (currentFilter === 'mismatch' && item.isMatch) continue;
+    if (currentFilter === 'match' && !item.isMatch) continue;
+
+    let iStr = item.iInherited ? item.iVal.toFixed(2) + '(继承)' : item.iVal.toFixed(2);
+    let row;
+    if (mergeMode) {
+      row = [
+        item.seq, item.name, item.project, item.buyer, item.platform,
+        item.fVal.toFixed(2), item.date, item.screenshot,
+        item.invoiceRaw, item.reimburseRaw,
+        iStr, item.jVal.toFixed(2),
+        item.groupF.toFixed(2), item.groupIJ.toFixed(2),
+        item.diff.toFixed(2),
+        item.isMatch ? '匹配' : '差异',
+        item.isStandalone ? '独立' : `组${item.groupId + 1}${item.groupFirst ? '(首)' : ''}`
+      ];
+    } else {
+      row = [
+        item.seq, item.name, item.project, item.buyer, item.platform,
+        item.fVal.toFixed(2), item.date, item.screenshot,
+        item.invoiceRaw, item.reimburseRaw,
+        iStr, item.jVal.toFixed(2), item.ijSum.toFixed(2),
+        item.diff.toFixed(2),
+        item.isMatch ? '匹配' : '差异'
+      ];
+    }
+    lines.push(row.map(c => {
+      const s = String(c || '');
+      return s.includes(',') || s.includes('"') ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(','));
+  }
+
+  const csv = '\uFEFF' + lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `核对结果_${mergeMode ? '合并' : '独立'}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ===== Event Handlers =====
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  const fileName = file.name;
+  if (fileName.endsWith('.csv')) {
+    reader.onload = (ev) => loadData(ev.target.result, fileName);
+    reader.readAsText(file, 'utf-8');
+  } else {
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      loadData(csv, fileName);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  e.target.value = '';
+});
+
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  if (typeof SAMPLE_CSV !== 'undefined') {
+    loadData(SAMPLE_CSV, '示例数据：采买报销个人整理 - 2026.07');
+  }
+});
+
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
+
+document.getElementById('pasteBtn').addEventListener('click', () => {
+  document.getElementById('pasteModal').style.display = 'flex';
+  document.getElementById('pasteArea').focus();
+});
+
+document.getElementById('cancelPaste').addEventListener('click', () => {
+  document.getElementById('pasteModal').style.display = 'none';
+});
+
+document.getElementById('confirmPaste').addEventListener('click', () => {
+  const text = document.getElementById('pasteArea').value.trim();
+  if (!text) { alert('请粘贴数据'); return; }
+  loadData(text, '粘贴数据');
+  document.getElementById('pasteModal').style.display = 'none';
+  document.getElementById('pasteArea').value = '';
+});
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+});
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  currentSearch = e.target.value.trim();
+  renderTable();
+});
+
+document.getElementById('toleranceInput').addEventListener('change', (e) => {
+  tolerance = parseFloat(e.target.value) || 0;
+  // Recompute match status for all rows
+  for (const item of processed) {
+    if (item.type === 'data') {
+      item.isMatch = Math.abs(item.diff) <= tolerance;
+    }
+  }
+  renderSummary();
+  renderTable();
+});
+
+// Merge toggle
+document.getElementById('mergeToggle').addEventListener('click', () => {
+  mergeMode = !mergeMode;
+  const toggle = document.getElementById('mergeToggle');
+  toggle.classList.toggle('active', mergeMode);
+  document.getElementById('mergeLabel').textContent = mergeMode ? '合并核对' : '独立核对';
+  // Reprocess data with new mode
+  if (rawData.length > 0) {
+    processed = processData(rawData);
+    renderSummary();
+    renderTable();
+    // Update file info
+    const dataCount = processed.filter(d => d.type === 'data').length;
+    const groupCount = new Set(processed.filter(d => d.type === 'data').map(d => d.groupId)).size;
+    document.getElementById('fileInfo').textContent = `📄 ${currentFileName} | ${dataCount} 条数据行${mergeMode ? ` | ${groupCount} 组` : ''}`;
+  }
+});
+
+// ===== Feishu Import =====
+function openFeishuModal() {
+  document.getElementById('feishuModal').style.display = 'flex';
+}
+function closeFeishuModal() {
+  document.getElementById('feishuModal').style.display = 'none';
+  const st = document.getElementById('feishuStatus');
+  st.className = 'feishu-status';
+  st.textContent = '';
+  document.getElementById('confirmFeishu').style.display = 'none';
+}
+function showFeishuStatus(type, msg) {
+  const el = document.getElementById('feishuStatus');
+  el.className = 'feishu-status ' + type;
+  el.innerHTML = msg;
+}
+function parseFeishuUrl(url) {
+  const sheetMatch = url.match(/feishu\.cn\/sheets\/([A-Za-z0-9]+)/);
+  const sheetIdMatch = url.match(/sheet=([A-Za-z0-9]+)/);
+  const baseMatch = url.match(/feishu\.cn\/base\/([A-Za-z0-9]+)/);
+  const tableMatch = url.match(/table=([A-Za-z0-9]+)/);
+  if (sheetMatch) {
+    return { type: 'sheet', spreadsheetToken: sheetMatch[1], sheetId: sheetIdMatch ? sheetIdMatch[1] : null };
+  } else if (baseMatch) {
+    return { type: 'base', appToken: baseMatch[1], tableId: tableMatch ? tableMatch[1] : null };
+  }
+  return null;
+}
+async function fetchFeishuSheet(spreadsheetToken, sheetId, accessToken) {
+  if (!sheetId) {
+    const metaUrl = `https://open.feishu.cn/open-apis/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/query`;
+    const metaRes = await fetch(metaUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+    if (!metaRes.ok) throw new Error(`获取工作表列表失败: HTTP ${metaRes.status}`);
+    const metaData = await metaRes.json();
+    if (metaData.data && metaData.data.sheets && metaData.data.sheets.length > 0) {
+      sheetId = metaData.data.sheets[0].sheet_id;
+    } else { throw new Error('未找到工作表'); }
+  }
+  const dataUrl = `https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/${spreadsheetToken}/values/${sheetId}!A1:ZZ10000`;
+  const res = await fetch(dataUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`获取数据失败: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.data || !data.data.valueRange || !data.data.valueRange.values) throw new Error('数据格式异常');
+  return rowsToCsv(data.data.valueRange.values);
+}
+function rowsToCsv(rows) {
+  return rows.map(row =>
+    row.map(cell => {
+      if (cell === null || cell === undefined) return '';
+      const s = String(cell);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')
+  ).join('\n');
+}
+
+document.getElementById('feishuBtn').addEventListener('click', openFeishuModal);
+document.getElementById('cancelFeishu').addEventListener('click', closeFeishuModal);
+
+document.querySelectorAll('.feishu-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.feishu-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.feishu-tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('ftab-' + tab.dataset.ftab).classList.add('active');
+    document.getElementById('confirmFeishu').style.display = tab.dataset.ftab === 'paste' ? 'inline-flex' : 'none';
+  });
+});
+
+document.getElementById('feishuFetchBtn').addEventListener('click', async () => {
+  const url = document.getElementById('feishuUrl').value.trim();
+  const token = document.getElementById('feishuToken').value.trim();
+  if (!url) { showFeishuStatus('error', '请输入飞书表格链接'); return; }
+  if (!token) { showFeishuStatus('error', '请输入访问令牌'); return; }
+  const parsed = parseFeishuUrl(url);
+  if (!parsed) { showFeishuStatus('error', '无法识别飞书链接，请确认链接格式正确（如 https://xxx.feishu.cn/sheets/...）'); return; }
+
+  const fetchBtn = document.getElementById('feishuFetchBtn');
+  fetchBtn.disabled = true;
+  fetchBtn.innerHTML = '<span class="feishu-loading"></span>正在获取...';
+  showFeishuStatus('info', '正在从飞书获取数据，请稍候...');
+
+  try {
+    if (parsed.type === 'sheet') {
+      const csv = await fetchFeishuSheet(parsed.spreadsheetToken, parsed.sheetId, token);
+      loadData(csv, `飞书表格 ${parsed.spreadsheetToken.slice(0, 8)}...`);
+      showFeishuStatus('success', '✅ 数据获取成功！正在加载到工作台...');
+      setTimeout(() => closeFeishuModal(), 1200);
+    } else if (parsed.type === 'base') {
+      showFeishuStatus('error', '多维表格(Base)暂不支持API直接获取，请使用「复制粘贴」或「AI助手导入」方式');
+    }
+  } catch (err) {
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('CORS')) {
+      showFeishuStatus('error', '⚠️ 网络请求被浏览器安全策略(CORS)拦截。飞书API不允许网页直接调用。<br><br>请改用以下方式：<br>① 切换到「复制粘贴」— 从飞书表格复制数据粘贴<br>② 切换到「AI助手导入」— 让WorkBuddy帮你拉取数据');
+    } else {
+      showFeishuStatus('error', '获取失败: ' + err.message);
+    }
+  } finally {
+    fetchBtn.disabled = false;
+    fetchBtn.textContent = '获取数据';
+  }
+});
+
+document.getElementById('confirmFeishu').addEventListener('click', () => {
+  const text = document.getElementById('feishuPasteArea').value.trim();
+  if (!text) { alert('请先粘贴数据'); return; }
+  let csvText = text;
+  // Detect tab-separated (Feishu/Excel copy format) and convert to CSV
+  if (text.includes('\t')) {
+    csvText = text.split('\n').map(line =>
+      line.split('\t').map(cell => {
+        const s = cell !== undefined ? cell.trim() : '';
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',')
+    ).join('\n');
+  }
+  loadData(csvText, '飞书粘贴数据');
+  closeFeishuModal();
+  document.getElementById('feishuPasteArea').value = '';
+});
+
+document.getElementById('feishuGenCmdBtn').addEventListener('click', () => {
+  const url = document.getElementById('feishuAssistantUrl').value.trim();
+  if (!url) { alert('请输入飞书文档链接'); return; }
+  const cmd = `请帮我从飞书拉取以下表格的数据并导入到采买报销核对工作台中：\n\n飞书表格链接：${url}\n\n操作步骤：\n1. 使用飞书连接器读取该表格的全部数据\n2. 将数据转换为CSV格式（保留原始列顺序）\n3. 更新 invoice-workbench/data.js 文件中的 SAMPLE_CSV 变量为新数据\n4. 刷新工作台预览`;
+  document.getElementById('feishuCmdText').textContent = cmd;
+  document.getElementById('feishuCmdBox').style.display = 'block';
+});
+
+document.getElementById('feishuCmdBox').addEventListener('click', () => {
+  const text = document.getElementById('feishuCmdText').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      const el = document.querySelector('.feishu-cmd-copy');
+      const orig = el.textContent;
+      el.textContent = '✅ 已复制';
+      setTimeout(() => { el.textContent = orig; }, 2000);
+    });
+  }
+});
+
+// ===== Init =====
+window.addEventListener('DOMContentLoaded', () => {
+  if (typeof SAMPLE_CSV !== 'undefined') {
+    loadData(SAMPLE_CSV, '示例数据：采买报销个人整理 - 2026.07');
+  }
+});
+</script>
+</body>
+</html>
